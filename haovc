@@ -1,0 +1,381 @@
+操作case    id     操作类型            变异位置                        变异值                           other_val      是否改变长度
+case 1      0     FLIP_BIT           UR(temp_len)                   none
+case 2      1     interesting_8      UR(sizeof(interesting_8)       UR(sizeof(interesting_16)
+case 3      2     interesting_32     UR(temp_len - 3)               UR(sizeof(interesting_32)
+            3     interesting_32     UR(temp_len - 3)               UR(sizeof(interesting_32)
+case 4      4     Randomly sub       UR(temp_len)                   UR(ARITH_MAX)
+case 5      5     Randomly add       UR(temp_len)]                  UR(ARITH_MAX)
+case 6      6     Randomly sub       UR(temp_len - 1)               UR(ARITH_MAX)
+            7     Randomly sub       UR(temp_len - 1)               UR(ARITH_MAX)
+case 7      8     Randomly add       UR(temp_len - 1)               UR(ARITH_MAX)
+            9     Randomly add       UR(temp_len - 1)               UR(ARITH_MAX)
+case 8      10    Randomly subtract  UR(temp_len - 3)               UR(ARITH_MAX)
+            11    Randomly subtract  UR(temp_len - 3)               UR(ARITH_MAX)
+case 9      12    Randomly add       UR(temp_len - 3)               UR(ARITH_MAX)
+            13    Randomly add       UR(temp_len - 3)               UR(ARITH_MAX)
+case 10     14    random value       UR(temp_len)                   UR(255)
+case 11/12  15    Delete bytes       del_from                       del_len
+case 13     16    clone/insert       clone_len,clone_from,clone_to
+            17    clone/insert       clone_len,clone_from,clone_to
+case 14     18    random copy   
+
+case 15     18    Overwrite   
+
+
+struct operate{
+
+  u8 opearte_id;
+
+  u32 locate_change;
+
+  u32 len_change;
+
+  u8 data1_change;
+
+  u32 data2_change;
+
+}
+
+
+void variation_operate(struct operate op,u8* src,u8*out_buf,u32 temp_len){
+
+    u32 locate_change=op.locate_change; 
+    u32 data_u32_change=op.data_u32_change;
+    u16 data_u16_change=op.data_u16_change; 
+    
+
+    switch (op.opearte_id) {
+
+        case 0:
+
+          /* Flip a single bit somewhere. Spooky! */ 
+          FLIP_BIT(out_buf, locate_change);
+
+          break;
+
+        case 1: 
+
+          /* Set byte to interesting value. */ 
+          out_buf[locate_change] = interesting_8[data_u32_change];
+          break;
+
+        case 2:
+
+          /* Set word to interesting value, randomly choosing endian. */
+           
+          if (op.is_first) {
+ 
+            *(u16*)(out_buf + locate_change) =
+            interesting_16[data_u32_change];
+
+          } else {
+
+            *(u16*)(out_buf + locate_change) = SWAP16(
+              interesting_16[data_u32_change]);
+
+          }
+
+          break;
+
+        case 3:
+
+          /* Set dword to interesting value, randomly choosing endian. */
+            
+          if (op.is_first) {
+            *(u32*)(out_buf + locate_change) =
+              interesting_32[data_u32_change];
+          }  else {
+
+            *(u32*)(out_buf + locate_change) = SWAP32(
+              interesting_32[data_u32_change]);
+
+          }
+
+          break;
+
+        case 4:
+
+          /* Randomly subtract from byte. */
+
+          out_buf[locate_change] -= 1 + data_u32_change;
+          break;
+
+        case 5:
+
+          out_buf[locate_change] += 1 + data_u32_change;
+          break;
+
+        case 6:
+
+          /* Randomly subtract from word, random endian. */
+
+        
+          if (op.is_first) {
+
+            u16 num = 1 + data_u16_change;
+
+            *(u16*)(out_buf + locate_change) -= num;
+
+          } else {
+ 
+            u16 num = 1 + data_u16_change;
+
+            *(u16*)(out_buf +locate_change) =
+              SWAP16(SWAP16(*(u16*)(out_buf + locate_change)) - num);
+
+          }
+
+          break;
+
+        case 7:
+
+          /* Randomly add to word, random endian. */ 
+
+          if (op.is_first) { 
+
+            *(u16*)(out_buf + locate_change) += 1 + data_u16_change;
+
+          } else {
+ 
+            u16 num = 1 + data_u16_change;
+
+            *(u16*)(out_buf + locate_change) =
+              SWAP16(SWAP16(*(u16*)(out_buf + locate_change)) + num);
+
+          }
+
+          break;
+
+        case 8:
+
+          /* Randomly subtract from dword, random endian. */
+
+          if (op.is_first) {
+ 
+            *(u32*)(out_buf + locate_change) -= 1 + data_u16_change;
+
+          } else {
+
+            u32 num = 1 + data_u16_change;
+
+            *(u32*)(out_buf + locate_change) =
+              SWAP32(SWAP32(*(u32*)(out_buf + locate_change)) - num);
+
+          }
+
+          break;
+
+        case 9:
+
+          /* Randomly add to dword, random endian. */
+
+          if (op.is_first) {
+
+            *(u32*)(out_buf + locate_change) += 1 + data_u16_change;
+
+          } else {
+
+            *(u32*)(out_buf + locate_change) =
+              SWAP32(SWAP32(*(u32*)(out_buf + locate_change)) + 1 + data_u16_change);
+
+          }
+
+          break;
+
+        case 10:
+
+          /* Just set a random byte to a random value. Because,
+             why not. We use XOR with 1-255 to eliminate the
+             possibility of a no-op. */
+
+          out_buf[locate_change] ^= 1 + data_u32_change;
+          break;
+
+        case 11 ... 12: {
+
+            /* Delete bytes. We're making this a bit more likely
+               than insertion (the next option) in hopes of keeping
+               files reasonably small. */  
+
+            u32 del_from=op.locate_change, del_len=op.len_change; 
+
+            memmove(out_buf + del_from, out_buf + del_from + del_len,
+                    temp_len - del_from - del_len);
+
+            temp_len -= del_len;
+
+            break;
+
+          }
+
+        case 13:
+
+          if (temp_len + HAVOC_BLK_XL < MAX_FILE) {
+
+            /* Clone bytes (75%) or insert a block of constant bytes (25%). */
+ 
+            u32 clone_from, clone_to, clone_len;
+            u8* new_buf;
+
+
+            if (op.is_first) {
+
+              clone_len  = choose_block_len(temp_len); 
+
+            } else {
+
+              clone_len = choose_block_len(HAVOC_BLK_XL);
+              clone_from = 0;
+
+            }
+
+            new_buf = ck_alloc_nozero(temp_len + clone_len);
+
+            /* Head */
+
+            memcpy(new_buf, out_buf, clone_to);
+
+            /* Inserted part */
+
+            if (op.is_first){
+
+              memcpy(new_buf + clone_to, out_buf + clone_from, clone_len);
+            }
+            else{
+
+
+              u8 data_write=op.data_u8_change;
+
+              memset(new_buf + clone_to,
+                     data_write, clone_len);
+            }
+
+            /* Tail */
+            memcpy(new_buf + clone_to + clone_len, out_buf + clone_to,
+                   temp_len - clone_to);
+
+            ck_free(out_buf);
+            out_buf = new_buf;
+            temp_len += clone_len;
+
+          }
+
+          break;
+
+        case 14: {
+
+            /* Overwrite bytes with a randomly selected chunk (75%) or fixed
+               bytes (25%). */
+            u32 copy_len  = op.len_change;
+            u32 copy_from  = op.data_u32_change;
+
+            u32 copy_to  = op.locate_change;
+
+
+            if (op.is_first) {
+
+              if (copy_from != copy_to)
+                memmove(out_buf + copy_to, out_buf + copy_from, copy_len);
+
+            } else {
+
+              u8 data=op.data_u8_change;
+              
+              memset(out_buf + copy_to,data, copy_len);
+            }
+            break;
+
+          }
+
+        /* Values 15 and 16 can be selected only if there are any extras
+           present in the dictionaries. */
+
+        case 15: {
+
+            /* Overwrite bytes with an extra. */
+
+            if (op.is_first) {
+
+              /* No user-specified extras or odds in our favor. Let's use an
+                 auto-detected one. */
+
+              u32 use_extra = op.data_u32_change;
+              u32 extra_len = op.len_change;
+              u32 insert_at=op.locate_change;
+
+              if (extra_len > temp_len) break;
+
+              memcpy(out_buf + insert_at, a_extras[use_extra].data, extra_len);
+
+            } else {
+
+              /* No auto extras or odds in our favor. Use the dictionary. */
+
+              u32 use_extra = op.data_u32_change;
+              u32 extra_len = op.len_change;
+              u32 insert_at=op.locate_change;
+
+              if (extra_len > temp_len) break;
+
+              memcpy(out_buf + insert_at, extras[use_extra].data, extra_len);
+
+            }
+
+            break;
+
+          }
+
+        case 16: {
+
+            u32 use_extra=op.data_u32_change, extra_len=op.len_change, insert_at = op.locate_change;
+            u8* new_buf;
+
+            /* Insert an extra. Do the same dice-rolling stuff as for the
+               previous case. */
+
+            if (!extras_cnt || (a_extras_cnt && UR(2))) {
+
+              use_extra = UR(a_extras_cnt);
+              extra_len = a_extras[use_extra].len;
+
+              if (temp_len + extra_len >= MAX_FILE) break;
+
+              new_buf = ck_alloc_nozero(temp_len + extra_len); 
+
+              /* Head */
+              memcpy(new_buf, out_buf, insert_at);
+
+              /* Inserted part */
+              memcpy(new_buf + insert_at, a_extras[use_extra].data, extra_len);
+
+            } else {
+
+              use_extra = UR(extras_cnt);
+              extra_len = extras[use_extra].len;
+
+              if (temp_len + extra_len >= MAX_FILE) break;
+
+              new_buf = ck_alloc_nozero(temp_len + extra_len);
+
+              /* Head */
+              memcpy(new_buf, out_buf, insert_at);
+
+              /* Inserted part */
+              memcpy(new_buf + insert_at, extras[use_extra].data, extra_len);
+
+            }
+
+            /* Tail */
+            memcpy(new_buf + insert_at + extra_len, out_buf + insert_at,
+                   temp_len - insert_at);
+
+            ck_free(out_buf);
+            out_buf   = new_buf;
+            temp_len += extra_len;
+
+            break;
+
+          }
+
+
+}
